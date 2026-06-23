@@ -2,6 +2,22 @@
 
 `oc-last` helps find and reopen OpenCode sessions tied to repo context.
 
+## Install
+
+Install via repo installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash -s -- oc-last
+```
+
+Or install direct binary:
+
+```bash
+curl -fsSL -o "$HOME/.local/bin/oc-last" \
+  https://raw.githubusercontent.com/srmdn/opcode-kit/main/bin/oc-last
+chmod +x "$HOME/.local/bin/oc-last"
+```
+
 ## What It Reads
 
 - default DB: `$HOME/.local/share/opencode/opencode.db`

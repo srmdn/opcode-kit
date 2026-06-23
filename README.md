@@ -16,13 +16,19 @@ Install all current tools:
 curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash
 ```
 
+Install one tool only:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash -s -- oc-last
+```
+
 Install from local checkout:
 
 ```bash
 ./install.sh
 ```
 
-Install one tool only:
+Install one tool from local checkout:
 
 ```bash
 ./install.sh oc-last
@@ -33,6 +39,11 @@ Requires:
 - `bash`
 - `sqlite3`
 - [OpenCode](https://opencode.ai/)
+
+Current install modes:
+
+- `install.sh` with no args: install all tools in `bin/`
+- `install.sh <tool>`: install one tool only
 
 ## Quick Start
 
