@@ -2,25 +2,29 @@
 
 Small Unix-style helpers for OpenCode workflows.
 
-First tool: `oc-last`
+## Tools
+
+### `oc-last`
 
 - find recent OpenCode sessions for current directory
 - preview session context before resume
 - reopen intended session without guessing
 
-Also included:
+### `opcode-switch`
 
-- `opcode-switch`: switch between local OpenCode accounts without editing auth files by hand
+- switch between local OpenCode accounts
+- save current auth as named profile
+- activate another account without editing auth files by hand
 
 ## Install
 
-Install all current tools:
+Install all tools:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash
 ```
 
-Install one tool only:
+Install `oc-last` only:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash -s -- oc-last
@@ -47,21 +51,33 @@ Install one tool from local checkout:
 Requires:
 
 - `bash`
-- `sqlite3`
 - [OpenCode](https://opencode.ai/)
 
-Current install modes:
+Tool-specific notes:
 
-- `install.sh` with no args: install all tools in `bin/`
-- `install.sh <tool>`: install one tool only
+- `oc-last` needs `sqlite3`
+- `opcode-switch --verify` needs `opencode` on `PATH`
+- `install.sh` with no args installs all tools in `bin/`
+- `install.sh <tool>` installs one tool only
 
 ## Quick Start
+
+Session recovery:
 
 ```bash
 oc-last
 oc-last --show 1
 oc-last --open 1
 oc-last --recent
+```
+
+Account switching:
+
+```bash
+opcode-switch
+opcode-switch --save personal
+opcode-switch work
+opcode-switch --verify
 ```
 
 ## Example Output
