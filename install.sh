@@ -12,6 +12,7 @@ Usage:
   ./install.sh
   ./install.sh all
   ./install.sh oc-last
+  ./install.sh opcode-switch
   PREFIX=/custom/prefix ./install.sh
 
 Notes:
@@ -40,6 +41,22 @@ install_tool() {
 
   install -m 0755 "$source_file" "$target"
   printf 'Installed %s to %s\n' "$tool" "$target"
+}
+
+warn_tool_dependencies() {
+  local tool="$1"
+  case "$tool" in
+    oc-last)
+      if ! command -v sqlite3 >/dev/null 2>&1; then
+        printf 'Warning: sqlite3 not found on PATH. %s needs sqlite3.\n' "$tool" >&2
+      fi
+      ;;
+    opcode-switch)
+      if ! command -v opencode >/dev/null 2>&1; then
+        printf 'Warning: opencode not found on PATH. %s --verify needs opencode.\n' "$tool" >&2
+      fi
+      ;;
+  esac
 }
 
 TOOLS=()
@@ -76,11 +93,8 @@ mkdir -p "$BIN_DIR"
 
 for tool in "${TOOLS[@]}"; do
   install_tool "$tool"
+  warn_tool_dependencies "$tool"
 done
-
-if ! command -v sqlite3 >/dev/null 2>&1; then
-  printf 'Warning: sqlite3 not found on PATH. Some tools may need sqlite3.\n' >&2
-fi
 
 if [ ":$PATH:" != *":$BIN_DIR:"* ]; then
   printf 'Note: %s not on PATH\n' "$BIN_DIR"

@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+keys_dir="$HOME/.opencode/keys"
+auth_target="$HOME/.local/share/opencode/auth.json"
+
+usage() {
+  echo "Usage: opcode-switch [<name> | --save <name> | --add <name> <key>]"
+  echo
+  echo "Commands:"
+  echo "  (no args)            List accounts, show active"
+  echo "  <name>               Switch to named account"
+  echo "  --save <name>        Save current auth.json as named account"
+  echo "  --add <name> <key>   Create account from raw API key"
+  echo "  --rename <old> <new> Rename an account"
+  echo "  --verify             Check current key against OpenCode API"
+  exit "${1:-0}"
+}
+
+list_accounts() {
+  echo "Available accounts:"
+  local found=0
+  for f in "$keys_dir"/*.json; do
+    [[ ! -f "$f" ]] && continue
+    found=1
+    local name
+    name="$(basename "$f" .json)"
+    local mark=" "
+    diff -q "$f" "$auth_target" >/dev/null 2>&1 && mark="→"
+    echo "  $mark $name"
+  done
+  if [[ $found -eq 0 ]]; then
+    echo "  (none)"
+  fi
+  echo
+  echo "Usage: opcode-switch <name>"
+}
+
+switch_to() {
+  local name="$1"
+  local src="$keys_dir/${name}.json"
+
+  if [[ ! -f "$src" ]]; then
+    echo "✗ No such account: '$name'"
+    echo "  Run 'opcode-switch' to list accounts."
+    exit 1
+  fi
+
+  cp "$src" "$auth_target" && echo "✓ Switched to $name"
+}
+
+save_current() {
+  local name="$1"
+
+  if [[ ! -f "$auth_target" ]]; then
+    echo "✗ No auth.json found at $auth_target"
+    echo "  Run 'opencode login' first, then 'opcode-switch --save $name'"
+    exit 1
+  fi
+
+  mkdir -p "$keys_dir"
+  cp "$auth_target" "$keys_dir/${name}.json"
+  chmod 600 "$keys_dir/${name}.json"
+  echo "✓ Saved current auth as '$name'"
+}
+
+add_key() {
+  local name="$1"
+  local key="$2"
+
+  if [[ ! "$key" =~ ^sk- ]]; then
+    echo "✗ Invalid key format (expected sk-...)."
+    exit 1
+  fi
+
+  mkdir -p "$keys_dir"
+
+  printf '{"opencode-go": {"type":"api","key":"%s"}}\n' "$key" \
+    > "$keys_dir/${name}.json"
+
+  chmod 600 "$keys_dir/${name}.json"
+  echo "✓ Added account '$name'"
+  echo "  Run 'opcode-switch $name' to activate."
+}
+
+rename_account() {
+  local old_name="$1"
+  local new_name="$2"
+  local src="$keys_dir/${old_name}.json"
+  local dst="$keys_dir/${new_name}.json"
+
+  if [[ ! -f "$src" ]]; then
+    echo "✗ No such account: '$old_name'"
+    echo "  Run 'opcode-switch' to list accounts."
+    exit 1
+  fi
+
+  if [[ -f "$dst" ]]; then
+    echo "✗ Account '$new_name' already exists."
+    exit 1
+  fi
+
+  mv "$src" "$dst" && echo "✓ Renamed '$old_name' → '$new_name'"
+}
+
+verify() {
+  if [[ ! -f "$auth_target" ]]; then
+    echo "✗ No auth.json found at $auth_target"
+    exit 1
+  fi
+
+  local output exitcode
+  output="$(opencode models opencode-go 2>&1)"
+  exitcode=$?
+
+  if [[ $exitcode -eq 0 ]]; then
+    local count
+    count="$(echo "$output" | grep -c '^opencode-go/' || true)"
+    if [[ $count -gt 0 ]]; then
+      echo "✓ API key is valid ($count models available)"
+    else
+      echo "✓ API key is valid"
+    fi
+  else
+    echo "✗ API key rejected:"
+    echo "$output" | sed 's/^/  /'
+    exit 1
+  fi
+}
+
+case "${1:-list}" in
+  --help|-h|help)  usage 0 ;;
+  list)            list_accounts ;;
+  --save)
+    [[ -z "${2:-}" ]] && { echo "✗ --save requires a name. Usage: --save <name>"; exit 1; }
+    save_current "$2"
+    ;;
+  --add)
+    [[ -z "${2:-}" ]] && { echo "✗ --add requires a name and key. Usage: --add <name> <key>"; exit 1; }
+    [[ -z "${3:-}" ]] && { echo "✗ Missing key. Usage: --add <name> <key>"; exit 1; }
+    add_key "$2" "$3"
+    ;;
+  --rename)
+    [[ -z "${2:-}" ]] && { echo "✗ --rename requires old and new name. Usage: --rename <old> <new>"; exit 1; }
+    [[ -z "${3:-}" ]] && { echo "✗ Missing new name. Usage: --rename <old> <new>"; exit 1; }
+    rename_account "$2" "$3"
+    ;;
+  --verify)        verify ;;
+  *)               switch_to "$1" ;;
+esac

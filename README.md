@@ -8,6 +8,10 @@ First tool: `oc-last`
 - preview session context before resume
 - reopen intended session without guessing
 
+Also included:
+
+- `opcode-switch`: switch between local OpenCode accounts without editing auth files by hand
+
 ## Install
 
 Install all current tools:
@@ -20,6 +24,12 @@ Install one tool only:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash -s -- oc-last
+```
+
+Install `opcode-switch` only:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash -s -- opcode-switch
 ```
 
 Install from local checkout:
@@ -100,9 +110,11 @@ opcode-kit/
   install.sh
   bin/
     oc-last
+    opcode-switch
     ...
   docs/
     oc-last.md
+    opcode-switch.md
     ...
 ```
 
@@ -119,6 +131,7 @@ Shared repo, separate commands. No heavy framework, no package-manager lock-in.
 ## Docs
 
 - [docs/oc-last.md](docs/oc-last.md)
+- [docs/opcode-switch.md](docs/opcode-switch.md)
 
 ## License
 
