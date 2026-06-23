@@ -1,21 +1,25 @@
-# oc-last
+# opcode-last
 
-`oc-last` helps find and reopen OpenCode sessions tied to repo context.
+`opcode-last` helps find and reopen OpenCode sessions tied to repo context.
+
+Compatibility alias:
+
+- `oc-last` forwards to `opcode-last`
 
 ## Install
 
 Install via repo installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash -s -- oc-last
+curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash -s -- opcode-last
 ```
 
 Or install direct binary:
 
 ```bash
-curl -fsSL -o "$HOME/.local/bin/oc-last" \
-  https://raw.githubusercontent.com/srmdn/opcode-kit/main/bin/oc-last
-chmod +x "$HOME/.local/bin/oc-last"
+curl -fsSL -o "$HOME/.local/bin/opcode-last" \
+  https://raw.githubusercontent.com/srmdn/opcode-kit/main/bin/opcode-last
+chmod +x "$HOME/.local/bin/opcode-last"
 ```
 
 ## What It Reads
@@ -41,18 +45,18 @@ For each session:
 ## Flags
 
 ```text
-oc-last
-oc-last --all
-oc-last --limit N
-oc-last --dir PATH
-oc-last --show N
-oc-last --open N
-oc-last --recent
+opcode-last
+opcode-last --all
+opcode-last --limit N
+opcode-last --dir PATH
+opcode-last --show N
+opcode-last --open N
+opcode-last --recent
 ```
 
 Behavior:
 
-- `oc-last`: list recent sessions for exact current directory
+- `opcode-last`: list recent sessions for exact current directory
 - `--all`: expand limit from `5` to `20`
 - `--limit N`: custom row count
 - `--dir PATH`: query another directory without `cd`
@@ -68,7 +72,7 @@ Resume path checks:
 2. `$HOME/.opencode/bin/opencode`
 3. `opencode` on `PATH`
 
-If none found, `oc-last` exits with clear error.
+If none found, `opcode-last` exits with clear error.
 
 ## Fallback Behavior
 

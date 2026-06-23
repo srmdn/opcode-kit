@@ -4,11 +4,15 @@ Small Unix-style helpers for OpenCode workflows.
 
 ## Tools
 
-### `oc-last`
+### `opcode-last`
 
 - find recent OpenCode sessions for current directory
 - preview session context before resume
 - reopen intended session without guessing
+
+Compatibility alias:
+
+- `oc-last` still works and forwards to `opcode-last`
 
 ### `opcode-switch`
 
@@ -24,10 +28,10 @@ Install all tools:
 curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash
 ```
 
-Install `oc-last` only:
+Install `opcode-last` only:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash -s -- oc-last
+curl -fsSL https://raw.githubusercontent.com/srmdn/opcode-kit/main/install.sh | bash -s -- opcode-last
 ```
 
 Install `opcode-switch` only:
@@ -45,7 +49,7 @@ Install from local checkout:
 Install one tool from local checkout:
 
 ```bash
-./install.sh oc-last
+./install.sh opcode-last
 ```
 
 Requires:
@@ -55,7 +59,7 @@ Requires:
 
 Tool-specific notes:
 
-- `oc-last` needs `sqlite3`
+- `opcode-last` needs `sqlite3`
 - `opcode-switch --verify` needs `opencode` on `PATH`
 - `install.sh` with no args installs all tools in `bin/`
 - `install.sh <tool>` installs one tool only
@@ -65,10 +69,10 @@ Tool-specific notes:
 Session recovery:
 
 ```bash
-oc-last
-oc-last --show 1
-oc-last --open 1
-oc-last --recent
+opcode-last
+opcode-last --show 1
+opcode-last --open 1
+opcode-last --recent
 ```
 
 Account switching:
@@ -97,8 +101,8 @@ OpenCode sessions for:
      last assistant: no confidential data found in tracked files...
 
 Next:
-  oc-last --show N
-  oc-last --open N
+  opcode-last --show N
+  opcode-last --open N
 ```
 
 ## Why This Exists
@@ -125,6 +129,7 @@ opcode-kit/
   LICENSE
   install.sh
   bin/
+    opcode-last
     oc-last
     opcode-switch
     ...

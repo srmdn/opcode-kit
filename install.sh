@@ -11,7 +11,7 @@ usage() {
 Usage:
   ./install.sh
   ./install.sh all
-  ./install.sh oc-last
+  ./install.sh opcode-last
   ./install.sh opcode-switch
   PREFIX=/custom/prefix ./install.sh
 
@@ -47,6 +47,11 @@ warn_tool_dependencies() {
   local tool="$1"
   case "$tool" in
     oc-last)
+      if ! command -v sqlite3 >/dev/null 2>&1; then
+        printf 'Warning: sqlite3 not found on PATH. %s needs sqlite3.\n' "$tool" >&2
+      fi
+      ;;
+    opcode-last)
       if ! command -v sqlite3 >/dev/null 2>&1; then
         printf 'Warning: sqlite3 not found on PATH. %s needs sqlite3.\n' "$tool" >&2
       fi
@@ -95,6 +100,10 @@ for tool in "${TOOLS[@]}"; do
   install_tool "$tool"
   warn_tool_dependencies "$tool"
 done
+
+if [[ " ${TOOLS[*]} " == *" opcode-last "* ]] && [[ " ${TOOLS[*]} " != *" oc-last "* ]]; then
+  install_tool "oc-last"
+fi
 
 if [ ":$PATH:" != *":$BIN_DIR:"* ]; then
   printf 'Note: %s not on PATH\n' "$BIN_DIR"
