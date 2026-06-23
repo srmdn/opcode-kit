@@ -1,0 +1,286 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+DEFAULT_LIMIT=5
+ALL_LIMIT=20
+SNIPPET_LIST=100
+SNIPPET_SHOW=320
+DB_PATH="${OPENCODE_DB:-$HOME/.local/share/opencode/opencode.db}"
+PREFERRED_OPENCODE_BIN="${OPENCODE_BIN:-$HOME/.opencode/bin/opencode}"
+TARGET_DIR="${PWD}"
+LIMIT="$DEFAULT_LIMIT"
+ACTION="list"
+INDEX=""
+MATCH_MODE="exact"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  oc-last
+  oc-last --all
+  oc-last --limit N
+  oc-last --dir PATH
+  oc-last --show N
+  oc-last --open N
+  oc-last --recent
+
+Examples:
+  oc-last
+  oc-last --all
+  oc-last --show 2
+  oc-last --open 1
+  oc-last --dir /path/to/project
+  oc-last --recent
+
+Notes:
+  - Reads OpenCode's local SQLite DB only.
+  - Default scope matches exact working directory.
+  - If exact match is empty, list mode falls back to recent sessions from any directory.
+  - Indexes are 1-based within current result set.
+EOF
+}
+
+fail() {
+  printf 'oc-last: %s\n' "$1" >&2
+  exit 1
+}
+
+trim_snippet() {
+  local value="${1:-}"
+  local max="${2:-120}"
+  value="${value//$'\n'/ }"
+  value="${value//$'\r'/ }"
+  value="$(printf '%s' "$value" | tr -s ' ')"
+  if [ "${#value}" -gt "$max" ]; then
+    printf '%s...' "${value:0:max-3}"
+  else
+    printf '%s' "$value"
+  fi
+}
+
+sql_escape() {
+  printf '%s' "$1" | sed "s/'/''/g"
+}
+
+resolve_opencode_bin() {
+  if [ -x "$PREFERRED_OPENCODE_BIN" ]; then
+    printf '%s\n' "$PREFERRED_OPENCODE_BIN"
+    return 0
+  fi
+
+  if command -v opencode >/dev/null 2>&1; then
+    command -v opencode
+    return 0
+  fi
+
+  return 1
+}
+
+require_positive_int() {
+  local value="$1"
+  local flag="$2"
+  [ "$value" -ge 1 ] 2>/dev/null || fail "$flag must be positive integer"
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --all)
+      LIMIT="$ALL_LIMIT"
+      ;;
+    --limit)
+      shift
+      [ "$#" -gt 0 ] || fail "--limit requires value"
+      LIMIT="$1"
+      ;;
+    --dir)
+      shift
+      [ "$#" -gt 0 ] || fail "--dir requires value"
+      TARGET_DIR="$1"
+      ;;
+    --show)
+      shift
+      [ "$#" -gt 0 ] || fail "--show requires index"
+      ACTION="show"
+      INDEX="$1"
+      ;;
+    --open)
+      shift
+      [ "$#" -gt 0 ] || fail "--open requires index"
+      ACTION="open"
+      INDEX="$1"
+      ;;
+    --recent)
+      MATCH_MODE="recent"
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      fail "unknown argument: $1"
+      ;;
+  esac
+  shift
+done
+
+command -v sqlite3 >/dev/null 2>&1 || fail "sqlite3 required"
+[ -f "$DB_PATH" ] || fail "OpenCode DB not found at $DB_PATH"
+require_positive_int "$LIMIT" "--limit"
+
+DIR_SQL="$(sql_escape "$TARGET_DIR")"
+
+build_query() {
+  local where_clause="$1"
+  cat <<EOF
+WITH scoped AS (
+  SELECT
+    s.id,
+    s.title,
+    s.directory,
+    s.time_created,
+    s.time_updated,
+    (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count,
+    COALESCE((
+      SELECT substr(replace(replace(json_extract(p.data, '$.text'), char(10), ' '), char(13), ' '), 1, 400)
+      FROM part p
+      JOIN message m ON m.id = p.message_id
+      WHERE p.session_id = s.id
+        AND json_extract(m.data, '$.role') = 'user'
+        AND json_extract(p.data, '$.type') = 'text'
+      ORDER BY p.time_created ASC
+      LIMIT 1
+    ), '') AS first_user,
+    COALESCE((
+      SELECT substr(replace(replace(json_extract(p.data, '$.text'), char(10), ' '), char(13), ' '), 1, 400)
+      FROM part p
+      JOIN message m ON m.id = p.message_id
+      WHERE p.session_id = s.id
+        AND json_extract(m.data, '$.role') = 'user'
+        AND json_extract(p.data, '$.type') = 'text'
+      ORDER BY p.time_created DESC
+      LIMIT 1
+    ), '') AS last_user,
+    COALESCE((
+      SELECT substr(replace(replace(json_extract(p.data, '$.text'), char(10), ' '), char(13), ' '), 1, 400)
+      FROM part p
+      JOIN message m ON m.id = p.message_id
+      WHERE p.session_id = s.id
+        AND json_extract(m.data, '$.role') = 'assistant'
+        AND json_extract(p.data, '$.type') = 'text'
+      ORDER BY p.time_created DESC
+      LIMIT 1
+    ), '') AS last_assistant
+  FROM session s
+  WHERE $where_clause
+    AND s.time_archived IS NULL
+)
+SELECT
+  id,
+  title,
+  directory,
+  datetime(time_created / 1000, 'unixepoch', 'localtime') AS created_at,
+  datetime(time_updated / 1000, 'unixepoch', 'localtime') AS updated_at,
+  message_count,
+  first_user,
+  last_user,
+  last_assistant
+FROM scoped
+ORDER BY time_updated DESC
+LIMIT $LIMIT
+EOF
+}
+
+EXACT_QUERY="$(build_query "s.directory = '$DIR_SQL'")"
+RECENT_QUERY="$(build_query "1 = 1")"
+
+TSV_OUTPUT=""
+FALLBACK_NOTE=""
+
+if [ "$MATCH_MODE" = "recent" ]; then
+  TSV_OUTPUT="$(sqlite3 -tabs "$DB_PATH" "$RECENT_QUERY")"
+else
+  TSV_OUTPUT="$(sqlite3 -tabs "$DB_PATH" "$EXACT_QUERY")"
+  if [ -z "$TSV_OUTPUT" ] && [ "$ACTION" = "list" ]; then
+    TSV_OUTPUT="$(sqlite3 -tabs "$DB_PATH" "$RECENT_QUERY")"
+    [ -n "$TSV_OUTPUT" ] && FALLBACK_NOTE="No exact match for $TARGET_DIR. Showing recent sessions from all directories."
+  fi
+fi
+
+if [ -z "$TSV_OUTPUT" ]; then
+  if [ "$MATCH_MODE" = "recent" ]; then
+    printf 'No OpenCode sessions found in %s\n' "$DB_PATH"
+  else
+    printf 'No OpenCode sessions found for:\n  %s\n' "$TARGET_DIR"
+  fi
+  exit 0
+fi
+
+ROWS=()
+while IFS= read -r line; do
+  ROWS+=("$line")
+done <<EOF
+$TSV_OUTPUT
+EOF
+
+print_row() {
+  local idx="$1"
+  local row="$2"
+  IFS=$'\t' read -r session_id title directory created_at updated_at message_count first_user last_user last_assistant <<<"$row"
+  [ -n "$title" ] || title="(untitled session)"
+  printf '[%d] %s\n' "$idx" "$title"
+  printf '     id: %s\n' "$session_id"
+  printf '     dir: %s\n' "$directory"
+  printf '     updated: %s\n' "$updated_at"
+  printf '     messages: %s\n' "$message_count"
+  [ -n "$first_user" ] && printf '     first user: %s\n' "$(trim_snippet "$first_user" "$SNIPPET_LIST")"
+  [ -n "$last_user" ] && printf '     last user: %s\n' "$(trim_snippet "$last_user" "$SNIPPET_LIST")"
+  [ -n "$last_assistant" ] && printf '     last assistant: %s\n' "$(trim_snippet "$last_assistant" "$SNIPPET_LIST")"
+  printf '\n'
+}
+
+if [ "$ACTION" = "list" ]; then
+  if [ "$MATCH_MODE" = "recent" ]; then
+    printf 'Recent OpenCode sessions\n\n'
+  else
+    printf 'OpenCode sessions for:\n  %s\n\n' "$TARGET_DIR"
+  fi
+
+  [ -n "$FALLBACK_NOTE" ] && printf '%s\n\n' "$FALLBACK_NOTE"
+
+  idx=1
+  for row in "${ROWS[@]}"; do
+    print_row "$idx" "$row"
+    idx=$((idx + 1))
+  done
+
+  printf 'Next:\n'
+  printf '  oc-last --show N\n'
+  printf '  oc-last --open N\n'
+  exit 0
+fi
+
+[ -n "$INDEX" ] || fail "missing index"
+require_positive_int "$INDEX" "index"
+[ "$INDEX" -le "${#ROWS[@]}" ] || fail "index $INDEX out of range for current result set (${#ROWS[@]} rows)"
+
+SELECTED_ROW="${ROWS[$((INDEX - 1))]}"
+IFS=$'\t' read -r SESSION_ID TITLE DIRECTORY CREATED_AT UPDATED_AT MESSAGE_COUNT FIRST_USER LAST_USER LAST_ASSISTANT <<<"$SELECTED_ROW"
+
+if [ "$ACTION" = "show" ]; then
+  printf 'Session %s\n\n' "$INDEX"
+  printf 'title: %s\n' "${TITLE:-(untitled session)}"
+  printf 'id: %s\n' "$SESSION_ID"
+  printf 'directory: %s\n' "$DIRECTORY"
+  printf 'created: %s\n' "$CREATED_AT"
+  printf 'updated: %s\n' "$UPDATED_AT"
+  printf 'messages: %s\n' "$MESSAGE_COUNT"
+  [ -n "$FIRST_USER" ] && printf '\nfirst user:\n%s\n' "$(trim_snippet "$FIRST_USER" "$SNIPPET_SHOW")"
+  [ -n "$LAST_USER" ] && printf '\nlast user:\n%s\n' "$(trim_snippet "$LAST_USER" "$SNIPPET_SHOW")"
+  [ -n "$LAST_ASSISTANT" ] && printf '\nlast assistant:\n%s\n' "$(trim_snippet "$LAST_ASSISTANT" "$SNIPPET_SHOW")"
+  exit 0
+fi
+
+OPENCODE_BIN="$(resolve_opencode_bin || true)"
+[ -n "$OPENCODE_BIN" ] || fail "could not find OpenCode binary. Set OPENCODE_BIN or put 'opencode' on PATH"
+exec "$OPENCODE_BIN" --session "$SESSION_ID"
